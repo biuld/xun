@@ -6,11 +6,11 @@ class SourcePos(col: Long, row: Long)
 class SourceRange(srcStart: SourcePos, srcEnd: SourcePos)
 class SourceToken[T](tokVal: T, tokRange: SourceRange)
 
-class Parser[S, A](unParser: Iterator[S] => (Try[A], Iterator[S])) {
+case class Parser[S, A](unParser: Iter[S] => (Try[A], Iter[S])) {
 
-  def run(input: Iterator[S]): (Try[A], Iterator[S]) = unParser(input)
+  def run(input: Iter[S]): (Try[A], Iter[S]) = unParser(input)
 
-  def eval(input: Iterator[S]): Try[A] = run(input)._1
+  def eval(input: Iter[S]): Try[A] = run(input)._1
 
   def flatMap[B](f: A => Parser[S, B]): Parser[S, B] =
     Parser(input =>
@@ -37,6 +37,13 @@ class Parser[S, A](unParser: Iterator[S] => (Try[A], Iterator[S])) {
           if p(a) then (Success(a), s)
           else (Failure(ParserExp("predicate failed")), s)
     )
+
+  infix def <|>(p: Parser[S, A]): Parser[S, A] = Parser(input =>
+    val (r, s) = unParser(input)
+    r match
+      case Failure(exception) => p.unParser(input)
+      case Success(value)     => (r, s)
+  )
 }
 
 case class ParserExp(txt: String) extends Exception {
@@ -44,6 +51,14 @@ case class ParserExp(txt: String) extends Exception {
 }
 
 object Parser {
+  def attempt[S, A](p: Parser[S, A]): Parser[S, A] = Parser(input =>
+    val pos = input.position()
+    val (r, s) = p.unParser(input)
+    r match
+      case Failure(exception) => input.rewind(pos); (r, s)
+      case Success(value)     => (r, s)
+  )
+
   def munch[T]: Parser[T, T] = Parser(input =>
     input.nextOption() match
       case None => (Failure(ParserExp("the iterator has been consumed")), input)
@@ -58,8 +73,8 @@ object Parser {
 
   def symbol[T](s: T): Parser[T, T] = munch.withFilter(_ == s)
 
-  def span[T](p: T => Boolean): Parser[T, Iterator[T]] = Parser(input =>
-    val (r, s) = input.span(p)
+  def span[T](p: T => Boolean): Parser[T, Iter[T]] = Parser(input =>
+    val (r, s) = input.span1(p)
     (Success(r), s)
   )
 
@@ -91,7 +106,7 @@ object Parser {
 }
 
 @main def main() =
-  val input = Iterator('1', '2', '3', '.', '4')
+  val input: Iter[Char] = ???
   val p = for
     a <- Parser.long
     _ <- Parser.symbol('a')
