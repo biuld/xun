@@ -52,12 +52,14 @@ case class ParserExp(txt: String) extends Exception {
 
 object Parser {
   def attempt[S, A](p: Parser[S, A]): Parser[S, A] = Parser(input =>
-    val pos = input.position()
+    val pos = input.position
     val (r, s) = p.unParser(input)
     r match
       case Failure(exception) => input.rewind(pos); (r, s)
       case Success(value)     => (r, s)
   )
+
+  def get[S]:Parser[S, Iter[S]] = Parser(i => (Success(i), i))
 
   def munch[T]: Parser[T, T] = Parser(input =>
     input.nextOption() match
@@ -105,11 +107,11 @@ object Parser {
     yield s"$dstr.$fstr".toDouble
 }
 
-@main def main() =
-  val input: Iter[Char] = ???
-  val p = for
-    a <- Parser.long
-    _ <- Parser.symbol('a')
-    b <- Parser.int
-  yield a + b
+@main def main(): Unit =
+  val input: Iter[Char] = ArrayIter('1', '2', '.', '4')
+  // val p = for
+  //   a <- Parser.long
+  //   _ <- Parser.symbol('a')
+  //   b <- Parser.int
+  // yield a + b
   println(Parser.float.eval(input))
